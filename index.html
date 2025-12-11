@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>찐따 지오메트리 대쉬</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
+
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Noto Sans KR', sans-serif;
+            touch-action: none; /* 모바일에서 더블탭 줌 방지 */
+            user-select: none;
+        }
+
+        #gameCanvas {
+            display: block;
+            width: 100%;
+            height: 100vh;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 20; /* 전체화면 버튼 클릭을 위해 start-screen(10)보다 높게 설정 */
+        }
+
+        .hud-text {
+            position: absolute;
+            color: white;
+            font-weight: bold;
+            font-size: 24px;
+            text-shadow: 2px 2px 0 #000;
+        }
+
+        #score-box {
+            top: 20px;
+            left: 20px;
+            text-align: left;
+        }
+
+        #hiscore-box {
+            top: 20px;
+            right: 20px;
+            text-align: right;
+            pointer-events: auto; /* 버튼 클릭을 위해 이벤트 허용 */
+        }
+
+        #fullscreen-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid white;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            margin-left: 10px;
+            border-radius: 5px;
+            padding: 2px 8px;
+            vertical-align: middle;
+            font-family: 'Noto Sans KR', sans-serif;
+            transition: background 0.2s;
+        }
+
+        #fullscreen-btn:hover {
+            background: rgba(255, 255, 255, 0.4);
+        }
+
+        #start-screen, #gameover-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            pointer-events: auto;
+            z-index: 10;
+        }
+
+        h1 {
+            color: #fff;
+            font-size: 40px;
+            text-align: center;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px #ff00ff;
+            line-height: 1.4;
+        }
+
+        .btn {
+            padding: 15px 40px;
+            font-size: 24px;
+            font-family: 'Noto Sans KR', sans-serif;
+            font-weight: bold;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 5px 0 #2E7D32;
+            transition: transform 0.1s;
+        }
+
+        .btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 1px 0 #2E7D32;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .invincible-bar-container {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 300px;
+            height: 15px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            display: none;
+        }
+
+        .invincible-bar {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, #ffd700, #ff8c00);
+            border-radius: 10px;
+            transition: width 0.1s linear;
+        }
+
+        /* 무적 모드 알림 텍스트 */
+        #mode-msg {
+            position: absolute;
+            top: 20%;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #ffd700;
+            font-size: 40px;
+            font-weight: 900;
+            text-shadow: 0 0 20px red;
+            opacity: 0;
+            transition: opacity 0.5s;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="ui-layer">
+        <div id="score-box" class="hud-text">
+            Lv. <span id="level-display">1</span><br>
+            점수: <span id="score-display">0</span>
+        </div>
+        <div id="hiscore-box" class="hud-text">
+            Hi Score: <span id="hiscore-display">0</span>
+            <button id="fullscreen-btn" title="전체화면">⛶</button>
+        </div>
+        <div id="mode-msg">무적 모드 발동! 😡</div>
+        
+        <div class="invincible-bar-container" id="invincible-ui">
+            <div class="invincible-bar" id="invincible-bar"></div>
+        </div>
+    </div>
+
+    <div id="start-screen">
+        <h1>찐따<br>지오메트리 대쉬</h1>
+        <p style="color: #ddd; margin-bottom: 30px; text-align: center; font-size: 18px;">
+            Lv.2부터 지형이 험난해집니다! ⛰️<br>
+            높은 계단은 벽입니다. 부딪히면 게임 오버! ☠️<br>
+            2단 점프가 가능합니다!<br>
+            [스페이스바] 또는 [터치]로 점프
+        </p>
+        <button class="btn" id="start-btn">게임 시작</button>
+    </div>
+
+    <div id="gameover-screen" class="hidden">
+        <h1>게임 오버 😭</h1>
+        <p style="color: #fff; font-size: 20px; margin-bottom: 20px;">
+            당신의 점수: <span id="final-score">0</span>
+        </p>
+        <button class="btn" id="restart-btn">다시 하기</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // 오디오 컨텍스트 (효과음)
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playSound(type) {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            const now = audioCtx.currentTime;
+
+            if (type === 'jump') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(300, now);
+                osc.frequency.exponentialRampToValueAtTime(600, now + 0.1);
+                gainNode.gain.setValueAtTime(0.3, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                osc.start(now);
+                osc.stop(now + 0.1);
+            } else if (type === 'powerup') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(600, now);
+                osc.frequency.linearRampToValueAtTime(1200, now + 0.1);
+                osc.frequency.linearRampToValueAtTime(800, now + 0.2);
+                osc.frequency.linearRampToValueAtTime(1500, now + 0.3);
+                gainNode.gain.setValueAtTime(0.3, now);
+                gainNode.gain.linearRampToValueAtTime(0.01, now + 0.5);
+                osc.start(now);
+                osc.stop(now + 0.5);
+            } else if (type === 'break') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(100, now);
+                osc.frequency.exponentialRampToValueAtTime(10, now + 0.2);
+                gainNode.gain.setValueAtTime(0.5, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                osc.start(now);
+                osc.stop(now + 0.2);
+            } else if (type === 'gameover') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(500, now);
+                osc.frequency.linearRampToValueAtTime(300, now + 0.2);
+                osc.frequency.linearRampToValueAtTime(100, now + 0.8);
+                gainNode.gain.setValueAtTime(0.5, now);
+                gainNode.gain.linearRampToValueAtTime(0.01, now + 1.0);
+                osc.start(now);
+                osc.stop(now + 1.0);
+            }
+        }
+
+        // 게임 상태 변수
+        let isPlaying = false;
+        let isCheatMode = false; // 치트 모드 플래그 (Z키)
+        let isSuperCheatMode = false; // 슈퍼 치트 모드 플래그 (H키)
+        let animationId;
+        let frames = 0;
+        let score = 0;
+        
+        // 요청 반영: 하이스코어 0으로 초기화
+        localStorage.setItem('smileDashHiScore', 0);
+        let highScore = 0;
+        
+        let level = 1;
+        let gameSpeed = 10;
+        let spawnTimer = 0;
+        let lastTouchTime = 0; // 터치 중복 방지 시간 변수
+        
+        // 지형 관련 변수
+        let groundSegments = [];
+        let baseGroundY; // 초기 바닥 높이
+        let minGroundY;  // 지형 최대 높이 (천장에 닿지 않게)
+        let maxGroundY;  // 지형 최소 높이 (바닥 아래로 안 꺼지게)
+
+        // 전체화면 버튼 이벤트
+        document.getElementById('fullscreen-btn').addEventListener('click', () => {
+            // 버튼 클릭 시 포커스 해제 (스페이스바 점프 시 버튼 눌림 방지)
+            document.getElementById('fullscreen-btn').blur();
+
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.log(`Error attempting to enable full-screen mode: ${err.message}`);
+                });
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        });
+
+        // 화면 크기 설정
+        function resizeCanvas() {
+            const oldHeight = canvas.height; // 변경 전 높이 저장
+            
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            
+            // 게임 도중(지형 생성 후) 화면 크기가 바뀌면 오브젝트들 위치 보정
+            if (oldHeight && groundSegments.length > 0) {
+                const deltaY = canvas.height - oldHeight; // 높이 변화량
+
+                // 플레이어 위치 보정
+                player.y += deltaY;
+
+                // 지형 보정
+                groundSegments.forEach(seg => {
+                    seg.yStart += deltaY;
+                    seg.yEnd += deltaY;
+                });
+
+                // 장애물/아이템 보정
+                gameObjects.forEach(obj => {
+                    obj.y += deltaY;
+                });
+                
+                // 파티클 보정
+                particles.forEach(p => {
+                    p.y += deltaY;
+                });
+            }
+
+            // 바닥의 크기(화면 아래부터의 높이)는 120으로 고정
+            baseGroundY = canvas.height - 120;
+            minGroundY = canvas.height * 0.4; // 화면 위쪽 40% 지점까지만 올라감
+            maxGroundY = canvas.height - 50;  // 화면 아래쪽 여유
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        document.getElementById('hiscore-display').innerText = highScore;
+
+        // [수정] 요청된 이모지 및 색상 상수
+        const CHAR_NORMAL = '🤪';
+        const CHAR_INVINCIBLE = '😡';
+        const CHAR_SUPER = '🤬';
+        const OBSTACLES = ['💩', '👻', '💀', '👽', '👹', '🤡'];
+        const POWERUPS = ['🥬', '🥕', '🥦', '🧅'];
+
+        // 배경 별 생성
+        class Star {
+            constructor() {
+                this.init();
+            }
+            init() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height * 0.8;
+                this.size = Math.random() * 4 + 2; 
+                this.speed = Math.random() * 2 + 0.5;
+                this.alpha = Math.random();
+            }
+            update() {
+                this.x -= this.speed;
+                if (this.x < 0) {
+                    this.x = canvas.width;
+                    this.y = Math.random() * canvas.height * 0.8;
+                }
+            }
+            draw() {
+                ctx.globalAlpha = this.alpha;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        const stars = [];
+        for(let i=0; i<50; i++) {
+            stars.push(new Star());
+        }
+
+        // --- 지형(Ground) 클래스 및 관리 ---
+        class GroundSegment {
+            constructor(x, width, yStart, yEnd) {
+                this.x = x;
+                this.width = width;
+                this.yStart = yStart;
+                this.yEnd = yEnd;
+            }
+
+            update() {
+                this.x -= gameSpeed;
+            }
+
+            draw() {
+                // [수정] 바닥 색상 갈색 계열로 변경
+                ctx.fillStyle = '#5D4037'; // 짙은 갈색
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.yStart);
+                ctx.lineTo(this.x + this.width, this.yEnd);
+                ctx.lineTo(this.x + this.width, canvas.height);
+                ctx.lineTo(this.x, canvas.height);
+                ctx.closePath();
+                ctx.fill();
+
+                // 상단 라인
+                ctx.strokeStyle = '#8D6E63'; // 밝은 갈색
+                ctx.lineWidth = 10;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.yStart);
+                ctx.lineTo(this.x + this.width, this.yEnd);
+                ctx.stroke();
+            }
+
+            // 특정 x 위치에서의 지형 높이 반환
+            getHeightAt(px) {
+                if (px < this.x) return this.yStart;
+                if (px > this.x + this.width) return this.yEnd;
+                
+                const ratio = (px - this.x) / this.width;
+                return this.yStart + (this.yEnd - this.yStart) * ratio;
+            }
+        }
+
+        function addGroundSegment() {
+            let startX = 0;
+            let startY = baseGroundY;
+
+            if (groundSegments.length > 0) {
+                const last = groundSegments[groundSegments.length - 1];
+                startX = last.x + last.width;
+                startY = last.yEnd;
+            }
+
+            // 세그먼트 길이
+            const width = Math.random() * 300 + 400; // 400~700px 길이
+            let endY = startY;
+
+            // Lv.2 부터 지형 변화 시작 (요청 반영)
+            if (level >= 2) {
+                const rand = Math.random();
+                const delta = 100; // 변화 폭
+                
+                // [난이도 조정]: Lv.5 이상이면 평지 확률 대폭 감소 (40% -> 20%) (요청 반영)
+                const flatProbability = (level >= 5) ? 0.2 : 0.4;
+                const slopeProbability = (level >= 5) ? 0.4 : 0.3; // 경사 확률 증가
+                // 나머지 확률은 계단(단차)
+
+                if (rand < flatProbability) {
+                    // 평지 유지
+                    endY = startY;
+                } else if (rand < flatProbability + slopeProbability) {
+                    // 경사로 (오르막/내리막)
+                    if (startY < minGroundY + 100) endY = startY + delta;
+                    else if (startY > maxGroundY - 100) endY = startY - delta;
+                    else endY = startY + (Math.random() < 0.5 ? delta : -delta);
+                } else {
+                    // 계단/단차 (Step)
+                    let stepHeight = (Math.random() < 0.5 ? -100 : 100);
+                    
+                    if (startY + stepHeight < minGroundY) stepHeight = 100;
+                    if (startY + stepHeight > maxGroundY) stepHeight = -100;
+
+                    startY += stepHeight; 
+                    endY = startY; 
+                }
+            } else {
+                // Lv 1: 평지 위주
+                endY = baseGroundY;
+                startY = (groundSegments.length > 0) ? groundSegments[groundSegments.length-1].yEnd : baseGroundY;
+            }
+
+            if (endY < minGroundY) endY = minGroundY;
+            if (endY > maxGroundY) endY = maxGroundY;
+            if (startY < minGroundY) startY = minGroundY;
+            if (startY > maxGroundY) startY = maxGroundY;
+
+            groundSegments.push(new GroundSegment(startX, width, startY, endY));
+        }
+
+        function updateGround() {
+            // 화면 밖으로 나간 지형 제거
+            if (groundSegments.length > 0 && groundSegments[0].x + groundSegments[0].width < -200) {
+                groundSegments.shift();
+            }
+
+            // 새로운 지형 생성 (화면 오른쪽 끝보다 여유있게)
+            const lastSeg = groundSegments[groundSegments.length - 1];
+            if (lastSeg.x + lastSeg.width < canvas.width + 500) {
+                addGroundSegment();
+            }
+
+            groundSegments.forEach(seg => seg.update());
+        }
+
+        function getGroundYAt(x) {
+            // 해당 x좌표에 있는 세그먼트 찾기
+            const seg = groundSegments.find(s => x >= s.x && x <= s.x + s.width);
+            if (seg) return seg.getHeightAt(x);
+            return canvas.height; // Fallback
+        }
+
+
+        // --- 플레이어 객체 ---
+        const player = {
+            x: 100,
+            y: 0,
+            baseWidth: 100, 
+            baseHeight: 100,
+            width: 100,
+            height: 100,
+            dy: 0,
+            baseJumpPower: -23, 
+            invincibleJumpPower: -34, 
+            gravity: 1.2, 
+            grounded: false,
+            isInvincible: false,
+            invincibleTimer: 0,
+            invincibleMaxTime: 600,
+            angle: 0,
+            jumpCount: 0, // 2단 점프를 위한 카운트
+            
+            draw() {
+                ctx.save();
+                
+                // 크기: 치트모드는 커지지 않음, 아이템 먹었을 때만 커짐
+                const isBig = this.isInvincible && !isCheatMode;
+                const currentSize = isBig ? this.baseWidth * 1.5 : this.baseWidth;
+                
+                this.width = currentSize;
+                this.height = currentSize;
+
+                ctx.translate(this.x + this.width/2, this.y + this.height/2);
+                
+                if (!this.grounded) {
+                    this.angle += 0.15; 
+                } else {
+                    this.angle = 0;
+                }
+                
+                // 조건: 아이템 무적 상태일 때만 효과 적용 (치트 모드여도 아이템 먹으면 효과 나옴)
+                if (this.isInvincible && !isCheatMode) {
+                    ctx.rotate(Math.sin(frames * 0.2) * 0.2); 
+                    ctx.shadowColor = '#ffd700';
+                    ctx.shadowBlur = 40 + Math.sin(frames * 0.1) * 20;
+                } else {
+                    // 일반 상태 혹은 치트 모드 기본 상태
+                    ctx.rotate(this.angle);
+                    ctx.shadowBlur = 0;
+                }
+
+                ctx.font = `${this.width}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                
+                // [수정] 캐릭터 이모지 선택 로직
+                let char = CHAR_NORMAL;
+                if (isSuperCheatMode) {
+                    char = CHAR_SUPER; // 🤬
+                } else if (this.isInvincible || isCheatMode) {
+                    char = CHAR_INVINCIBLE; // 😡
+                }
+                
+                // [수정] y축 오프셋(this.width * 0.1) 제거하여 주인공을 정위치에 그림
+                ctx.fillText(char, 0, 0); 
+                ctx.restore();
+            },
+
+            update() {
+                // 현재 플레이어 위치(중앙)의 바닥 높이 계산
+                const groundYUnderPlayer = getGroundYAt(this.x + this.width / 2);
+                
+                // 중력 적용
+                this.y += this.dy;
+                
+                // 바닥 충돌 (착지)
+                if (this.y + this.height >= groundYUnderPlayer) {
+                    if (this.dy >= 0) {
+                        this.dy = 0;
+                        this.grounded = true;
+                        this.jumpCount = 0; // 착지 시 점프 카운트 초기화
+                        this.y = groundYUnderPlayer - this.height; // 바닥 위에 안착
+                    }
+                } else {
+                    // [수정] 내리막길 보정 (Slope Sticking)
+                    // 이전에 바닥에 있었고(grounded), 점프 중이 아니며(dy >= 0),
+                    // 바닥과의 거리가 가까우면(내리막길) 떨어지는 것이 아니라 바닥에 붙인다.
+                    const distToGround = groundYUnderPlayer - (this.y + this.height);
+                    const slopeThreshold = 30; // 내리막길 허용 범위 (계단처럼 큰 낙차는 제외)
+
+                    if (this.grounded && this.dy >= 0 && distToGround > 0 && distToGround <= slopeThreshold) {
+                         this.y = groundYUnderPlayer - this.height;
+                         this.dy = 0;
+                         this.grounded = true;
+                         this.jumpCount = 0;
+                    } else {
+                        this.dy += this.gravity;
+                        this.grounded = false;
+                    }
+                }
+
+                // [슈퍼 모드 자동 점프 개선] 부딪히기 전에 미리 감지하여 점프
+                if (isSuperCheatMode && this.grounded) {
+                    const lookAhead = 60; // 60px 전방 감지
+                    const groundYAhead = getGroundYAt(this.x + this.width + lookAhead);
+                    const wallThreshold = 30;
+                    
+                    // 전방에 벽이 있으면 미리 점프
+                    if (groundYAhead < this.y + this.height - wallThreshold) {
+                        this.dy = this.baseJumpPower;
+                        this.grounded = false;
+                        playSound('jump');
+                    }
+                }
+
+                // 전방 벽 충돌 체크 (기존 충돌 로직)
+                const groundYFront = getGroundYAt(this.x + this.width - 20); 
+                const wallThreshold = 30; 
+                if (groundYFront < this.y + this.height - wallThreshold) {
+                    // [H키 기능 구현] 슈퍼 치트 모드일 경우 벽을 만나면 자동 점프 (안전장치)
+                    if (isSuperCheatMode) {
+                        this.dy = this.baseJumpPower; // 강제 점프
+                        this.grounded = false;
+                        playSound('jump'); // 소리도 재생
+                    } else {
+                        gameOver();
+                    }
+                }
+
+                // 타이머 및 입자 효과
+                if (this.isInvincible && !isCheatMode) {
+                    this.invincibleTimer--;
+                    updateInvincibleUI(this.invincibleTimer, this.invincibleMaxTime);
+                    
+                    if (frames % 4 === 0) {
+                        createParticle(this.x + this.width/2, this.y + this.height/2, '#ffd700', 2);
+                    }
+
+                    if (this.invincibleTimer <= 0) {
+                        this.isInvincible = false;
+                        document.getElementById('mode-msg').style.opacity = '0';
+                        document.getElementById('invincible-ui').style.display = 'none';
+                        this.y += (this.width - this.baseWidth); 
+                    }
+                } 
+            },
+
+            jump() {
+                // 2단 점프 허용: grounded이거나 점프 카운트가 2 미만일 때
+                if (this.grounded || this.jumpCount < 2) {
+                    playSound('jump');
+                    const isSuperJump = this.isInvincible && !isCheatMode;
+                    
+                    // 2단 점프 시에는 점프력을 약간 줄여주는 것도 좋지만, 여기선 동일하게 적용
+                    this.dy = isSuperJump ? this.invincibleJumpPower : this.baseJumpPower;
+                    
+                    this.grounded = false;
+                    this.jumpCount++;
+                }
+            }
+        };
+
+        // 장애물 관리
+        let gameObjects = [];
+        let particles = [];
+
+        class GameObject {
+            constructor(type, isFood) {
+                this.x = canvas.width + 100; // 화면 밖 생성
+                this.width = 100; 
+                this.height = 100;
+                
+                const spawnGroundY = getGroundYAt(this.x);
+                
+                this.y = spawnGroundY - this.height; 
+                this.isFood = isFood;
+                this.markedForDeletion = false;
+                
+                if (isFood) {
+                    this.emoji = POWERUPS[Math.floor(Math.random() * POWERUPS.length)];
+                    this.y -= Math.random() * 70 + 180; 
+                } else {
+                    this.emoji = OBSTACLES[Math.floor(Math.random() * OBSTACLES.length)];
+                }
+            }
+
+            update() {
+                this.x -= gameSpeed;
+                
+                if (!this.isFood) {
+                     const groundYHere = getGroundYAt(this.x + this.width/2);
+                     this.y = groundYHere - this.height;
+                }
+
+                if (this.x + this.width < -100) this.markedForDeletion = true;
+            }
+
+            draw() {
+                ctx.font = `${this.width}px sans-serif`;
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'top';
+                ctx.fillText(this.emoji, this.x, this.y);
+            }
+        }
+
+        class Particle {
+            constructor(x, y, color, sizeMultiplier = 1) {
+                this.x = x;
+                this.y = y;
+                this.size = (Math.random() * 5 + 5) * sizeMultiplier;
+                this.speedX = Math.random() * 10 - 5;
+                this.speedY = Math.random() * 10 - 5;
+                this.color = color;
+                this.life = 40;
+            }
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                this.speedY += 0.5; 
+                this.life--;
+            }
+            draw() {
+                ctx.globalAlpha = this.life / 40;
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        function createParticle(x, y, color, count = 1) {
+            for(let i=0; i<count; i++) {
+                particles.push(new Particle(x, y, color));
+            }
+        }
+
+        function spawnObject() {
+            spawnTimer--;
+            if (spawnTimer <= 0) {
+                const isFood = Math.random() < 0.1; 
+                gameObjects.push(new GameObject(null, isFood));
+                
+                let minGap = 100 - (level - 1) * (70 / 9); 
+                let maxGap = 200 - (level - 1) * (160 / 9); 
+
+                minGap = Math.max(30, minGap);
+                maxGap = Math.max(minGap + 10, maxGap);
+                
+                spawnTimer = Math.floor(Math.random() * (maxGap - minGap) + minGap);
+            }
+        }
+
+        function updateInvincibleUI(current, max) {
+            const bar = document.getElementById('invincible-bar');
+            const pct = (current / max) * 100;
+            bar.style.width = `${pct}%`;
+        }
+
+        function checkCollisions() {
+            gameObjects.forEach(obj => {
+                const hitX = obj.x + 20;
+                const hitY = obj.y + 20;
+                const hitW = obj.width - 40;
+                const hitH = obj.height - 20;
+
+                const pX = player.x + 20;
+                const pY = player.y + 20;
+                const pW = player.width - 40;
+                const pH = player.height - 20;
+
+                if (
+                    pX < hitX + hitW &&
+                    pX + pW > hitX &&
+                    pY < hitY + hitH &&
+                    pY + pH > hitY
+                ) {
+                    if (obj.isFood) {
+                        playSound('powerup');
+                        obj.markedForDeletion = true;
+                        activateInvincible();
+                        score += 100;
+                        createExplosion(obj.x + 50, obj.y + 50, '#00ff00', 20);
+                    } else {
+                        if (player.isInvincible || isCheatMode) {
+                            playSound('break');
+                            obj.markedForDeletion = true;
+                            score += 50;
+                            createExplosion(obj.x + 50, obj.y + 50, '#ff0000', 15);
+                            canvas.style.transform = `translate(${Math.random()*10-5}px, ${Math.random()*10-5}px)`;
+                            setTimeout(() => canvas.style.transform = 'none', 50);
+                        } else {
+                            gameOver();
+                        }
+                    }
+                }
+            });
+        }
+
+        function activateInvincible() {
+            if (isCheatMode) return; 
+
+            player.isInvincible = true;
+            player.invincibleTimer = player.invincibleMaxTime;
+            document.getElementById('mode-msg').style.opacity = '1';
+            document.getElementById('invincible-ui').style.display = 'block';
+        }
+
+        function createExplosion(x, y, color, count) {
+            for (let i = 0; i < count; i++) {
+                createParticle(x, y, color);
+            }
+        }
+
+        function updateLevel() {
+            // 제한 없이 레벨 증가 (요청 반영)
+            const newLevel = Math.floor(score / 1000) + 1; 
+            if (newLevel > level) {
+                level = newLevel;
+                // 속도 증가 (무한히 빨라지면 충돌 버그가 생길 수 있으므로 최대 40으로 안전장치 설정)
+                gameSpeed = Math.min(40, 10 + (level - 1) * 2.0);
+            }
+            document.getElementById('level-display').innerText = level;
+        }
+
+        function drawBackground() {
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = '#ffffff';
+            stars.forEach(star => {
+                star.update();
+                star.draw();
+            });
+            
+            groundSegments.forEach(seg => seg.draw());
+        }
+
+        function update() {
+            if (!isPlaying) return;
+
+            frames++;
+            score++;
+            document.getElementById('score-display').innerText = score;
+            updateLevel();
+
+            updateGround();
+
+            player.update();
+
+            spawnObject();
+            gameObjects.forEach(obj => obj.update());
+            gameObjects = gameObjects.filter(obj => !obj.markedForDeletion);
+
+            particles.forEach(p => p.update());
+            particles = particles.filter(p => p.life > 0);
+
+            checkCollisions();
+        }
+
+        function draw() {
+            drawBackground();
+
+            gameObjects.forEach(obj => obj.draw());
+            player.draw();
+            particles.forEach(p => p.draw());
+
+            if (isPlaying) {
+                animationId = requestAnimationFrame(gameLoop);
+            }
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+        }
+
+        function initGame() {
+            score = 0;
+            level = 1;
+            gameSpeed = 10; 
+            frames = 0;
+            spawnTimer = 60;
+            gameObjects = [];
+            particles = [];
+            
+            groundSegments = [];
+            groundSegments.push(new GroundSegment(-100, canvas.width + 500, baseGroundY, baseGroundY));
+
+            player.y = baseGroundY - player.height;
+            player.dy = 0;
+            player.isInvincible = false;
+            player.invincibleTimer = 0;
+            player.width = player.baseWidth; 
+            player.height = player.baseHeight;
+            player.jumpCount = 0;
+            
+            document.getElementById('mode-msg').style.opacity = '0';
+            document.getElementById('invincible-ui').style.display = 'none';
+
+            if (isSuperCheatMode) {
+                 // 메시지 숨김 처리
+                 document.getElementById('mode-msg').style.opacity = '0';
+            } else if (isCheatMode) {
+                 document.getElementById('mode-msg').style.opacity = '0';
+            } else {
+                 document.getElementById('mode-msg').innerText = "무적 모드 발동! 😡";
+            }
+        }
+
+        function startGame() {
+            initAudio(); 
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('gameover-screen').classList.add('hidden');
+            isPlaying = true;
+            initGame();
+            gameLoop();
+        }
+
+        function gameOver() {
+            playSound('gameover');
+            isPlaying = false;
+            cancelAnimationFrame(animationId);
+            
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('smileDashHiScore', highScore);
+                document.getElementById('hiscore-display').innerText = highScore;
+            }
+
+            document.getElementById('final-score').innerText = score;
+            document.getElementById('gameover-screen').classList.remove('hidden');
+        }
+
+        function handleInput(e) {
+            // 스페이스바 기본 동작(스크롤, 버튼 클릭 등) 방지
+            if (e.code === 'Space') {
+                e.preventDefault();
+            }
+
+            // 고스트 마우스 이벤트 방지: 터치 직후에 발생하는 mousedown 이벤트 무시
+            if (e.type === 'touchstart') {
+                lastTouchTime = Date.now();
+            } else if (e.type === 'mousedown') {
+                // 500ms 내에 터치 이벤트가 있었다면 무시
+                if (Date.now() - lastTouchTime < 500) {
+                    return;
+                }
+            }
+
+            if ((e.code === 'Space' || e.type === 'touchstart' || e.type === 'mousedown') && isPlaying) {
+                player.jump();
+            }
+            
+            // 슈퍼 무적 모드 중 J키 누르면 게임 종료
+            // [수정] Z키 -> J키로 변경
+            if (isPlaying && isSuperCheatMode && e.code === 'KeyJ') {
+                gameOver();
+            }
+
+            if (!isPlaying && document.getElementById('gameover-screen').classList.contains('hidden')) {
+                // [수정] 한글 입력 상태 호환을 위해 e.code 사용
+                if (e.code === 'KeyZ') {
+                    isCheatMode = true; 
+                    isSuperCheatMode = false;
+                    startGame();
+                } else if (e.code === 'KeyH') { 
+                    isCheatMode = true; 
+                    isSuperCheatMode = true;
+                    startGame();
+                }
+            }
+        }
+
+        window.addEventListener('keydown', handleInput);
+        window.addEventListener('mousedown', handleInput);
+        window.addEventListener('touchstart', handleInput, {passive: false});
+
+        document.getElementById('start-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            isCheatMode = false; 
+            isSuperCheatMode = false;
+            startGame();
+        });
+
+        document.getElementById('restart-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            isCheatMode = false; 
+            isSuperCheatMode = false;
+            startGame();
+        });
+
+        resizeCanvas();
+        initGame(); 
+        drawBackground();
+        player.draw();
+
+    </script>
+</body>
+</html>
